@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ScanChina</title>
+<meta name="theme-color" content="#0e1110">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ScanChina">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<style>
+  :root {
+    --bg: #0e1110; --panel: #171b19; --line: #262c29; --text: #eef2ef; --muted: #8b958f;
+    --accent: #3ddc84; --prot: #5aa9ff; --carb: #ffb547; --fat: #ff6b6b; --warn: #ffcc4d;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.35 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif; }
+  body { padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); min-height: 100vh; }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 0 14px 24px; }
+
+  /* Caméra */
+  .cam { position: relative; margin: 10px 0 12px; border-radius: 18px; overflow: hidden;
+    background: #000; aspect-ratio: 4 / 3; max-height: 40vh; width: 100%; }
+  .cam video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cam .frame { position: absolute; left: 8%; right: 8%; top: 30%; bottom: 30%;
+    border: 2px solid rgba(255,255,255,.75); border-radius: 12px; pointer-events: none; }
+  .cam .laser { position: absolute; left: 10%; right: 10%; top: 50%; height: 2px;
+    background: var(--accent); box-shadow: 0 0 12px var(--accent); opacity: .8;
+    animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+  .cam.hit .frame { border-color: var(--accent); }
+  .cam .msg { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 12px;
+    align-items: center; justify-content: center; text-align: center; padding: 20px; color: var(--muted); }
+  .cam .msg[hidden] { display: none; }
+  button { font: inherit; color: inherit; border: 0; cursor: pointer; }
+  .btn { background: var(--accent); color: #062b16; font-weight: 700; padding: 12px 18px; border-radius: 12px; }
+
+  /* Saisie manuelle */
+  .manual { display: flex; gap: 8px; margin-bottom: 12px; }
+  .manual input { flex: 1; min-width: 0; background: var(--panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 12px; padding: 11px 12px; font-size: 16px; }
+  .manual button { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 0 16px; }
+
+  /* Fiche produit */
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 16px; }
+  .card[hidden] { display: none; }
+  .name { font-size: 19px; font-weight: 700; margin: 0; word-break: break-word; }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 3px; }
+  .tabs { display: flex; gap: 6px; margin: 14px 0 12px; flex-wrap: wrap; }
+  .tabs button { background: transparent; border: 1px solid var(--line); color: var(--muted);
+    padding: 6px 11px; border-radius: 999px; font-size: 14px; }
+  .tabs button.on { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: 600; }
+  .kcal { display: flex; align-items: baseline; gap: 8px; }
+  .kcal b { font-size: 54px; line-height: 1; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+  .kcal span { color: var(--muted); font-size: 18px; }
+  .bar { display: flex; height: 8px; border-radius: 99px; overflow: hidden; margin: 12px 0 14px; background: var(--line); }
+  .bar i { display: block; height: 100%; }
+  .macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .m { background: var(--bg); border-radius: 12px; padding: 10px; border-top: 3px solid; }
+  .m b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
+  .m small { color: var(--muted); font-size: 12px; }
+  .m.p { border-color: var(--prot); } .m.c { border-color: var(--carb); } .m.f { border-color: var(--fat); }
+  .details { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-top: 12px; font-size: 14px; }
+  .details div { display: flex; justify-content: space-between; color: var(--muted); }
+  .details div span:last-child { color: var(--text); font-variant-numeric: tabular-nums; }
+  .src { margin-top: 12px; font-size: 12px; color: var(--muted); }
+  .unknown { color: var(--warn); }
+
+  /* Historique */
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 22px 0 8px; }
+  .hist { list-style: none; margin: 0; padding: 0; }
+  .hist li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 2px;
+    border-bottom: 1px solid var(--line); cursor: pointer; }
+  .hist li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hist li span:last-child { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .status { font-size: 12px; color: var(--muted); margin-top: 18px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="cam" id="cam">
+    <video id="video" playsinline muted autoplay></video>
+    <div class="frame"></div><div class="laser" id="laser"></div>
+    <div class="msg" id="camMsg"><div>Appuie pour lancer la caméra</div><button class="btn" id="startBtn">Scanner</button></div>
+  </div>
+
+  <form class="manual" id="manual">
+    <input id="codeInput" inputmode="numeric" pattern="[0-9]*" placeholder="…ou tape le code-barre" autocomplete="off">
+    <button type="submit">OK</button>
+  </form>
+
+  <div class="card" id="card" hidden></div>
+
+  <h2 id="histTitle" hidden>Derniers scans</h2>
+  <ul class="hist" id="hist"></ul>
+
+  <div class="status" id="status">Chargement de la base…</div>
+</div>
+
+<script src="lib/zxing-reader.js"></script>
+<script>
+"use strict";
+// ---------- Base de données ----------
+let DB = null, FIELDS = [], netFail = false;
+const PERSO_KEY = "scanchina-perso", HIST_KEY = "scanchina-hist";
+const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const perso = load(PERSO_KEY, {});   // produits trouvés en ligne, gardés pour le hors ligne
+
+const dbReady = fetch("data.json").then(r => r.json()).then(d => {
+  DB = d.products || {}; FIELDS = d.fields || [];
+  const n = (d.count || 0).toLocaleString("fr-FR");
+  document.getElementById("status").textContent = d.count
+    ? `Base hors ligne : ${n} produits (dont ${(d.cn||0).toLocaleString("fr-FR")} chinois) · maj ${d.date}`
+    : "Base en cours de préparation – recherche en ligne uniquement pour l'instant";
+}).catch(() => {
+  DB = {}; document.getElementById("status").textContent = "Base hors ligne indisponible";
+});
+
+function toObj(arr) { const o = {}; FIELDS.forEach((f, i) => o[f] = arr[i]); return o; }
+
+function candidates(code) {
+  const c = [code];
+  if (code.length === 12) c.push("0" + code);
+  if (code.length === 13 && code[0] === "0") c.push(code.slice(1));
+  return c;
+}
+
+async function lookup(code) {
+  await dbReady;
+  for (const c of candidates(code)) {
+    if (DB[c]) return { p: toObj(DB[c]), src: "base" };
+    if (perso[c]) return { p: perso[c], src: "perso" };
+  }
+  netFail = false;
+  if (!navigator.onLine) return null;
+  try {   // produit absent de la base : on tente Open Food Facts en direct
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 6000);
+    const url = `https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_zh,product_name_fr,brands,nutriments,serving_quantity,serving_size,product_quantity,quantity`;
+    const r = await fetch(url, { signal: ctl.signal }); clearTimeout(t);
+    const j = await r.json();
+    if (j.status !== 1 || !j.product) return null;
+    const pr = j.product, n = pr.nutriments || {};
+    const g = k => (n[k] === undefined || n[k] === "" ? null : Math.round(Number(n[k]) * 10) / 10);
+    let kcal = g("energy-kcal_100g");
+    if (kcal == null && g("energy-kj_100g") != null) kcal = Math.round(g("energy-kj_100g") / 4.184);
+    if (kcal == null) return null;
+    const p = { name: pr.product_name || pr.product_name_zh || pr.product_name_fr || "", brand: (pr.brands || "").split(",")[0],
+      kcal: Math.round(kcal), prot: g("proteins_100g"), carb: g("carbohydrates_100g"), sugar: g("sugars_100g"),
+      fat: g("fat_100g"), satfat: g("saturated-fat_100g"), fiber: g("fiber_100g"),
+      salt: g("salt_100g") ?? (g("sodium_100g") != null ? Math.round(g("sodium_100g") * 25) / 10 : null),
+      serving_g: Number(pr.serving_quantity) || null, serving_txt: pr.serving_size || "",
+      pack_g: Number(pr.product_quantity) || null, quantity: pr.quantity || "" };
+    perso[code] = p; save(PERSO_KEY, perso);
+    return { p, src: "online" };
+  } catch { netFail = true; return null; }
+}
+
+// ---------- Affichage ----------
+const card = document.getElementById("card");
+let current = null, mode = "100";
+const fmt = (v, d = 1) => v == null ? "—" : (Math.round(v * 10 ** d) / 10 ** d).toLocaleString("fr-FR");
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function render() {
+  if (!current) return;
+  const { code, res } = current;
+  card.hidden = false;
+  if (!res) {
+    card.innerHTML = `<p class="name unknown">Produit inconnu</p>
+      <div class="sub">Code ${esc(code)} · absent de la base hors ligne${!navigator.onLine ? " (pas de réseau pour chercher en ligne)" : netFail ? " et Open Food Facts n'a pas répondu (réseau lent ou bloqué)" : " et d'Open Food Facts"}.</div>`;
+    return;
+  }
+  const p = res.p;
+  const liquid = /\d\s*(ml|cl|l)\b/i.test(p.quantity || "") || /ml|毫升/i.test(p.serving_txt || "");
+  const u = liquid ? "ml" : "g";
+  const modes = [["100", `100 ${u}`, 100]];
+  if (p.serving_g) modes.push(["serv", `Portion ${fmt(p.serving_g, 0)} ${u}`, p.serving_g]);
+  if (p.pack_g && p.pack_g !== p.serving_g) modes.push(["pack", `Paquet ${fmt(p.pack_g, 0)} ${u}`, p.pack_g]);
+  if (!modes.find(m => m[0] === mode)) mode = "100";
+  const k = modes.find(m => m[0] === mode)[2] / 100;
+  const x = v => v == null ? null : v * k;
+  const g = (v, d = 1) => v == null ? "—" : fmt(v, d) + " g";
+  const pc = (p.prot || 0) * 4, cc = (p.carb || 0) * 4, fc = (p.fat || 0) * 9, tot = pc + cc + fc || 1;
+  const srcTxt = { base: "Base hors ligne", perso: "Enregistré sur ton téléphone", online: "Trouvé en ligne · gardé pour le hors ligne" }[res.src];
+  card.innerHTML = `
+    <p class="name">${esc(p.name) || "Sans nom"}</p>
+    <div class="sub">${[p.brand, p.quantity, code].filter(Boolean).map(esc).join(" · ")}</div>
+    <div class="tabs">${modes.map(m => `<button data-m="${m[0]}" class="${m[0] === mode ? "on" : ""}">${m[1]}</button>`).join("")}</div>
+    <div class="kcal"><b>${fmt(x(p.kcal), 0)}</b><span>kcal</span></div>
+    <div class="bar"><i style="width:${pc / tot * 100}%;background:var(--prot)"></i><i style="width:${cc / tot * 100}%;background:var(--carb)"></i><i style="width:${fc / tot * 100}%;background:var(--fat)"></i></div>
+    <div class="macros">
+      <div class="m p"><b>${fmt(x(p.prot))}</b><small>Protéines (g)</small></div>
+      <div class="m c"><b>${fmt(x(p.carb))}</b><small>Glucides (g)</small></div>
+      <div class="m f"><b>${fmt(x(p.fat))}</b><small>Lipides (g)</small></div>
+    </div>
+    <div class="details">
+      <div><span>dont sucres</span><span>${g(x(p.sugar))}</span></div>
+      <div><span>dont saturés</span><span>${g(x(p.satfat))}</span></div>
+      <div><span>Fibres</span><span>${g(x(p.fiber))}</span></div>
+      <div><span>Sel</span><span>${g(x(p.salt), 2)}</span></div>
+    </div>
+    <div class="src">${srcTxt} · Open Food Facts</div>`;
+  card.querySelectorAll(".tabs button").forEach(b => b.onclick = () => { mode = b.dataset.m; render(); });
+}
+
+// ---------- Historique ----------
+let hist = load(HIST_KEY, []);
+function renderHist() {
+  const ul = document.getElementById("hist");
+  document.getElementById("histTitle").hidden = !hist.length;
+  ul.innerHTML = hist.map(h => `<li data-c="${esc(h.code)}"><span>${esc(h.name || h.code)}</span><span>${h.kcal == null ? "?" : h.kcal + " kcal"}</span></li>`).join("");
+  ul.querySelectorAll("li").forEach(li => li.onclick = () => { show(li.dataset.c); scrollTo({ top: 0, behavior: "smooth" }); });
+}
+renderHist();
+
+async function show(code) {
+  const res = await lookup(code);
+  current = { code, res }; mode = "100"; render();
+  hist = [{ code, name: res ? res.p.name : "Inconnu", kcal: res ? res.p.kcal : null }, ...hist.filter(h => h.code !== code)].slice(0, 25);
+  save(HIST_KEY, hist); renderHist();
+}
+
+document.getElementById("manual").onsubmit = e => {
+  e.preventDefault();
+  const v = document.getElementById("codeInput").value.replace(/\D/g, "");
+  if (v.length >= 8) { document.getElementById("codeInput").blur(); show(v); }
+};
+
+// ---------- Scanner ----------
+ZXingWASM.prepareZXingModule({ overrides: {
+  locateFile: (path, prefix) => path.endsWith(".wasm") ? new URL("lib/" + path, location.href).href : prefix + path
+}, fireImmediately: true }).catch(() => {});
+
+const video = document.getElementById("video"), cam = document.getElementById("cam"), camMsg = document.getElementById("camMsg");
+const canvas = document.createElement("canvas"), ctx = canvas.getContext("2d", { willReadFrequently: true });
+const OPTS = { formats: ["EAN13", "EAN8", "UPCA", "UPCE"], tryHarder: true, tryRotate: false, tryInvert: false, maxNumberOfSymbols: 1 };
+let stream = null, lastCode = "", lastTime = 0, busy = false;
+
+async function startCam() {
+  camMsg.hidden = true;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: false,
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+    video.srcObject = stream; await video.play();
+    requestAnimationFrame(tick);
+  } catch (e) {
+    camMsg.hidden = false;
+    camMsg.firstElementChild.textContent = "Caméra non autorisée. Autorise-la dans Réglages › Safari › Caméra, ou tape le code ci-dessous.";
+  }
+}
+
+async function tick() {
+  if (!stream) return;
+  if (!busy && video.readyState >= 2) {
+    busy = true;
+    try {
+      // on analyse la bande centrale de l'image (là où est le cadre), réduite pour aller vite
+      const vw = video.videoWidth, vh = video.videoHeight;
+      const sx = vw * 0.05, sw = vw * 0.9, sy = vh * 0.25, sh = vh * 0.5;
+      const scale = Math.min(1, 900 / sw);
+      canvas.width = Math.round(sw * scale); canvas.height = Math.round(sh * scale);
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+      const res = await ZXingWASM.readBarcodes(ctx.getImageData(0, 0, canvas.width, canvas.height), OPTS);
+      const r = res.find(x => x.isValid && x.text);
+      if (r) {
+        let code = r.text.replace(/\D/g, "");
+        if (r.format === "UPCA" && code.length === 12) code = "0" + code;
+        const now = Date.now();
+        // même code toujours devant la caméra : on ne le ré-affiche pas (il faut l'éloigner 2 s)
+        const isNew = code !== lastCode || now - lastTime > 2000;
+        lastCode = code; lastTime = now;
+        if (isNew) {
+          cam.classList.add("hit"); setTimeout(() => cam.classList.remove("hit"), 400);
+          if (navigator.vibrate) navigator.vibrate(60);
+          show(code);
+        }
+      }
+    } catch {}
+    busy = false;
+  }
+  setTimeout(() => requestAnimationFrame(tick), 80);
+}
+
+document.getElementById("startBtn").onclick = startCam;
+// Lancement auto si la caméra est déjà autorisée
+if (navigator.permissions && navigator.permissions.query) {
+  navigator.permissions.query({ name: "camera" }).then(s => { if (s.state === "granted") startCam(); }).catch(() => {});
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && stream) { stream.getTracks().forEach(t => t.stop()); stream = null; camMsg.hidden = false; }
+});
+addEventListener("online", render); addEventListener("offline", render);
+
+// ---------- Hors ligne ----------
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
